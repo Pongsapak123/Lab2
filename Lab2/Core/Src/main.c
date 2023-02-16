@@ -45,14 +45,20 @@ DMA_HandleTypeDef hdma_adc1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+
+uint16_t rawdata[20];
+uint16_t sumVoltage;
+uint16_t sumTemp;
+
+uint16_t Voltage;
+uint16_t Temp;
 typedef union
 {
 	struct
 	{
 		uint16_t ADC_IN0;
-		uint16_t Temp;
+		float TempSensor;
 	}subData;
-	uint16_t buffer[2];
 }DMA_ADC_BufferType;
 
 DMA_ADC_BufferType buffer[10];
@@ -65,7 +71,8 @@ static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
-
+//void HAL_GPIO_EXIT_Callback(uint16_t GPIO_Pin);
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -105,7 +112,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_ADC_Start_DMA(&hadc1, buffer, 40);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -113,6 +120,23 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	  static uint32_t timestamp = 0;
+	  if (HAL_GetTick() >= timestamp)
+	  {
+		  timestamp += 1000;
+		  for(int i = 0;i < 10; i++){
+			  sumVoltage += buffer[i].subData.ADC_IN0;
+			  sumTemp += buffer[i].subData.TempSensor;
+		  }
+
+		  Voltage = ((sumVoltage/10)*3300/4095)*2;
+//		  Voltage = (sumVoltage/10)*3123/2045;
+//		  Voltage = (sumVoltage/10)*(103059/102250);
+		  Temp = ((((sumTemp/10)-0.76)/2.5/1000)+25)+273.15; //C = ((Vsense-v25)/AVG_slope+25)
+
+		  sumVoltage = 0;
+		  sumTemp = 0;
+	  }
 
     /* USER CODE BEGIN 3 */
   }
@@ -293,11 +317,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
+  /*Configure GPIO pin : PC13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
@@ -306,10 +330,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
-
+//void HAL_GPIO_EXIT_Callback(uint16_t GPIO_Pin){
+//	if(GPIO_Pin == GPIO_PIN_13){
+//		HAL_ADC_Start_DMA(&hadc1, rawdata, 20);
+//	}
+//}
+//
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+//{
+//
+//}
 /* USER CODE END 4 */
 
 /**
